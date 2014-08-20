@@ -1,0 +1,103 @@
+import numpy as np
+class Classifier:
+    def __init__(self, bucketPrefix, testBucketNumber, dataFormat):
+
+ 
+   
+        total = 0
+        classes = {}
+        counts = {}
+        
+        
+        # reading the data in from the file
+        
+        self.format = dataFormat.strip().split('\t')
+        self.prior = {}
+        self.conditional = {}
+        # for each of the buckets numbered 1 through 10:
+        filename = 'iHealth/i-01'
+        f = open(filename)
+        lines = f.readlines()
+        f.close()
+        for line in lines:
+        	fields = line.strip().split('\t')
+                ignore = []
+                vector = []
+                for i in range(len(fields)):
+                	if self.format[i] == 'num':
+                            vector.append(float(fields[i]))
+                        elif self.format[i] == 'attr':
+                            vector.append(fields[i])                           
+                        elif self.format[i] == 'comment':
+                            ignore.append(fields[i])
+                        elif self.format[i] == 'class':
+                            category = fields[i]
+                    # now process this instance
+                total += 1
+                classes.setdefault(category, 0)
+                counts.setdefault(category, {})
+                classes[category] += 1
+                    # now process each attribute of the instance
+                col = 0
+                for columnValue in vector:
+                	col += 1
+                        counts[category].setdefault(col, {})
+                        counts[category][col].setdefault(columnValue, 0)
+                        counts[category][col][columnValue] += 1
+        
+        #
+        # ok done counting. now compute probabilities
+        #
+        # first prior probabilities p(i500) , p(i100)
+        #
+        for (category, count) in classes.items():
+            self.prior[category] = count / total
+        #
+        # now compute conditional probabilities p(appearance|i500), p(appearance|i400), p(health|i500),p(both|i500) .....
+        #
+        for (category, columns) in counts.items():
+              self.conditional.setdefault(category, {})
+              for (col, valueCounts) in columns.items():
+                  self.conditional[category].setdefault(col, {})
+                  for (attrValue, count) in valueCounts.items():
+                  	self.conditional[category][col][attrValue] = np.exp(np.log(count)- np.log(classes[category]))
+		 	#self.conditional[category][col][attrValue] = count/classes[category]
+        self.tmp =  counts               
+        print self.conditional
+  
+
+
+    
+    def classify(self, itemVector):
+        """Return class we think item Vector is in"""
+        results = []
+        for (category, prior) in self.prior.items():
+            prob = prior
+            col = 1
+            for attrValue in itemVector:
+                if not attrValue in self.conditional[category][col]:
+                    # we did not find any instances of this attribute value
+                    # occurring with this category so prob = 0
+                    prob = 0
+                else:
+		    
+		    #print self.conditional[category][col][attrValue]
+		    if(prob == 0):
+                        prob = self.conditional[category][col][attrValue]
+		    else :
+			#print prob
+		    	prob = np.exp(np.log(prob) + np.log(self.conditional[category][col][attrValue]))
+		    
+                col += 1
+            results.append((prob, category))
+	   
+	print results
+        # return the category with the highest probability
+        return(max(results)[1]) 
+
+
+
+c = Classifier("iHealth/i", 10, "attr\tattr\tattr\tattr\tclass")
+print(c.classify(['health', 'active', 'moderate', 'yes']))
+
+
